@@ -17,6 +17,7 @@ import sys
 
 from functools import reduce
 
+import urllib.parse
 import email.message, email.parser, email.policy
 from email.utils import parsedate_to_datetime, formatdate, formataddr
 
@@ -139,6 +140,8 @@ def process_attachment(msg, entry, doc):
 
   mime_type = props.get('ATTACH_MIME_TAG', 'application/octet-stream')
   if isinstance(mime_type, bytes): mime_type = mime_type.decode("utf8")
+
+  filename = urllib.parse.quote_plus(filename)
 
   # Python 3.6.
   if isinstance(blob, str):
