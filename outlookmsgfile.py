@@ -64,26 +64,39 @@ def load_message_stream(entry, is_top_level, doc):
   else:
     # Construct common headers from metadata.
 
-    msg['Date'] = formatdate(props['MESSAGE_DELIVERY_TIME'].timestamp())
-    del props['MESSAGE_DELIVERY_TIME']
+    if 'MESSAGE_DELIVERY_TIME' in props:
+        msg['Date'] = formatdate(props['MESSAGE_DELIVERY_TIME'].timestamp())
+        del props['MESSAGE_DELIVERY_TIME']
 
-    if props['SENDER_NAME'] != props['SENT_REPRESENTING_NAME']:
-      props['SENDER_NAME'] += " (" + props['SENT_REPRESENTING_NAME'] + ")"
-    del props['SENT_REPRESENTING_NAME']
-    msg['From'] = formataddr((props['SENDER_NAME'], ""))
-    del props['SENDER_NAME']
+    if 'SENDER_NAME' in props:
+        if 'SENT_REPRESENTING_NAME' in props:
+            if props['SENT_REPRESENTING_NAME']:
+                if props['SENDER_NAME'] != props['SENT_REPRESENTING_NAME']:
+                  props['SENDER_NAME'] += " (" + props['SENT_REPRESENTING_NAME'] + ")"
+            del props['SENT_REPRESENTING_NAME']
+        if props['SENDER_NAME']:
+            msg['From'] = formataddr((props['SENDER_NAME'], ""))
+        del props['SENDER_NAME']
 
-    msg['To'] = props['DISPLAY_TO']
-    del props['DISPLAY_TO']
+    if 'DISPLAY_TO' in props:
+        if props['DISPLAY_TO']:
+            msg['To'] = props['DISPLAY_TO']
+        del props['DISPLAY_TO']
 
-    msg['CC'] = props['DISPLAY_CC']
-    del props['DISPLAY_CC']
+    if 'DISPLAY_CC' in props:
+        if props['DISPLAY_CC']:
+            msg['CC'] = props['DISPLAY_CC']
+        del props['DISPLAY_CC']
 
-    msg['BCC'] = props['DISPLAY_BCC']
-    del props['DISPLAY_BCC']
+    if 'DISPLAY_BCC' in props:
+        if props['DISPLAY_BCC']:
+            msg['BCC'] = props['DISPLAY_BCC']
+        del props['DISPLAY_BCC']
 
-    msg['Subject'] = props['SUBJECT']
-    del props['SUBJECT']
+    if 'SUBJECT' in props:
+        if props['SUBJECT']:
+            msg['Subject'] = props['SUBJECT']
+        del props['SUBJECT']
 
   # Add the plain-text body from the BODY field.
   if 'BODY' in props:
