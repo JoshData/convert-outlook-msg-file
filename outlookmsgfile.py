@@ -135,7 +135,7 @@ def process_attachment(msg, entry, doc):
   blob = props['ATTACH_DATA_BIN']
 
   # Get the filename and MIME type of the attachment.
-  filename = props.get("ATTACH_FILENAME") or props.get("DISPLAY_NAME")
+  filename = props.get("ATTACH_LONG_FILENAME") or props.get("ATTACH_FILENAME") or props.get("DISPLAY_NAME")
   if isinstance(filename, bytes): filename = filename.decode("utf8")
 
   mime_type = props.get('ATTACH_MIME_TAG', 'application/octet-stream')
