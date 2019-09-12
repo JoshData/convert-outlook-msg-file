@@ -1,0 +1,2 @@
+compoundfiles
+compressed-rtf
