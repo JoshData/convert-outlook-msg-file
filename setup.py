@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='convert-outlook-msg-file-joshdata',
+    name='convert-outlook-msg-file',
     version='0.1.0',
     description='Parse Microsoft Outlook MSG files',
     author='Joshua Tauberer',
