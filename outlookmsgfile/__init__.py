@@ -101,10 +101,13 @@ def load_message_stream(entry, is_top_level, doc):
   # Add the plain-text body from the BODY field.
   if 'BODY' in props:
     body = props['BODY']
-    if isinstance(body, str):
-      msg.set_content(body, cte='quoted-printable')
+    if msg.get_content_maintype() == "multipart":
+      msg.add_attachment(body)
     else:
-      msg.set_content(body, maintype="text", subtype="plain", cte='8bit')
+      if isinstance(body, str):
+          msg.set_content(body, cte='quoted-printable')
+      else:
+        msg.set_content(body, maintype="text", subtype="plain", cte='8bit')
 
   # Plain-text is not availabe. Use the rich text version.
   else:
