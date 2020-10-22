@@ -15,7 +15,7 @@ setuptools.setup(
     author='Joshua Tauberer',
     author_email='jt@occams.info',
     url='https://github.com/JoshData/convert-outlook-msg-file',
-    packages=setuptools.find_packages(),
+    py_modules=['outlookmsgfile'],
     install_requires=install_requires,
     long_description=long_description,
     long_description_content_type="text/markdown",
