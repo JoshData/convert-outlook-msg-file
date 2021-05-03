@@ -51,7 +51,7 @@ def load_message_stream(entry, is_top_level, doc):
     # way is just the plain-text portion of the email and whatever
     # Content-Type header was in the original is not valid for
     # reconstructing it this way.
-    headers = re.sub("Content-Type: .*(\n\s.*)*\n", "", headers, re.I)
+    headers = re.sub("Content-Type: .*(\n\s.*)*\n", "", headers, flags=re.I)
 
     # Parse them.
     headers = email.parser.HeaderParser(policy=email.policy.default)\
