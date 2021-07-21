@@ -241,7 +241,6 @@ def parse_properties(properties, is_top_level, container, doc):
       except KeyError as e:
         logger.error("Error while reading stream: {} not found".format(str(e)))
         continue
-
     else:
       # unrecognized type
       logger.error("unhandled property type {}".format(hex(property_type)))
