@@ -13,6 +13,7 @@
 # https://blogs.msdn.microsoft.com/openspecification/2009/11/06/msg-file-format-part-1/
 
 import re
+import logging
 import os
 import sys
 
@@ -22,6 +23,8 @@ import email.message, email.parser, email.policy
 from email.utils import parsedate_to_datetime, formatdate, formataddr
 
 import compoundfiles
+
+logger = logging.getLogger(__name__)
 
 
 # MAIN FUNCTIONS
@@ -138,7 +141,7 @@ def load_message_stream(entry, is_top_level, doc):
       try:
         process_attachment(msg, stream, doc)
       except KeyError as e:
-        print("Error processing attachment {} not found".format(str(e)), file=sys.stderr)
+        logger.error("Error processing attachment {} not found".format(str(e)))
         continue
 
   return msg
@@ -219,7 +222,7 @@ def parse_properties(properties, is_top_level, container, doc):
           value = innerstream.read()
       except:
         # Stream isn't present!
-        print("stream missing", streamname, file=sys.stderr)
+        logger.error("stream missing {}".format(streamname))
         continue
 
       value = tag_type.load(value)
@@ -231,17 +234,16 @@ def parse_properties(properties, is_top_level, container, doc):
         value = container[streamname]
       except:
         # Stream isn't present!
-        print("stream missing", streamname, file=sys.stderr)
+        logger.error("stream missing {}".format(streamname))
         continue
       try:
         value = tag_type.load(value, doc)
       except KeyError as e:
-        print("Error while reading stream: {} not found".format(str(e)) , file=sys.stderr)
+        logger.error("Error while reading stream: {} not found".format(str(e)))
         continue
-
     else:
       # unrecognized type
-      print("unhandled property type", hex(property_type), file=sys.stderr)
+      logger.error("unhandled property type {}".format(hex(property_type)))
       continue
 
     ret[tag_name] = value
