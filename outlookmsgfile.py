@@ -135,7 +135,11 @@ def load_message_stream(entry, is_top_level, doc):
   # Add attachments.
   for stream in entry:
     if stream.name.startswith("__attach_version1.0_#"):
-      process_attachment(msg, stream, doc)
+      try:
+        process_attachment(msg, stream, doc)
+      except KeyError as e:
+        print("Error processing attachment {} not found".format(str(e)), file=sys.stderr)
+        continue
 
   return msg
 
@@ -229,7 +233,11 @@ def parse_properties(properties, is_top_level, container, doc):
         # Stream isn't present!
         print("stream missing", streamname, file=sys.stderr)
         continue
-      value = tag_type.load(value, doc)
+      try:
+        value = tag_type.load(value, doc)
+      except KeyError as e:
+        print("Error while reading stream: {} not found".format(str(e)) , file=sys.stderr)
+        continue
 
     else:
       # unrecognized type
