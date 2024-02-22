@@ -192,6 +192,7 @@ def parse_properties(properties, is_top_level, container, doc):
 
   # Read 16-byte entries.
   ret = { }
+  tags_to_decode = []
   while i < len(stream):
     # Read the entry.
     property_type  = stream[i+0:i+2]
@@ -225,6 +226,9 @@ def parse_properties(properties, is_top_level, container, doc):
         logger.error("stream missing {}".format(streamname))
         continue
 
+      if isinstance(tag_type, STRING8):
+        tags_to_decode.append(tag_name)
+
       value = tag_type.load(value)
 
     elif isinstance(tag_type, EMBEDDED_MESSAGE):
@@ -247,6 +251,37 @@ def parse_properties(properties, is_top_level, container, doc):
       continue
 
     ret[tag_name] = value
+
+  # Post-processing: decode String8 strings using the code pages defined
+  # in properties.
+  #
+  # These properties are required to be present but in the real world they
+  # aren't always there, so there's a fallback to code page 1252 (Western
+  # Europe)
+
+  # The encoding of the "BODY" (and HTML body) properties
+  if "PR_INTERNET_CPID" in ret:
+    body_codepage = code_pages.get(ret['PR_INTERNET_CPID'], 'cp1252')
+  else:
+    body_codepage = 'cp1252'
+
+  # The encoding of "string properties of the message object"
+  if "PR_MESSAGE_CODEPAGE" in ret:
+    message_codepage = code_pages.get(ret['PR_MESSAGE_CODEPAGE'], 'cp1252')
+  else:
+    message_codepage = 'cp1252'
+
+  for tag_name in tags_to_decode:
+    decoded = False
+    if tag_name == "BODY":
+      try:
+        ret[tag_name] = ret[tag_name].decode(body_codepage)
+        decoded = True
+      except UnicodeDecodeError:
+        pass
+
+    if not decoded:
+      ret[tag_name] = ret[tag_name].decode(message_codepage, errors='replace')
 
   return ret
 
@@ -315,10 +350,9 @@ class BINARY(VariableLengthValueLoader):
 class STRING8(VariableLengthValueLoader):
   @staticmethod
   def load(value):
-    # value is a bytestring. I haven't seen specified what character encoding
-    # is used when the Unicode storage type is not used, so we'll assume it's
-    # ASCII or Latin-1 like but we'll use UTF-8 to cover the bases.
-    return value.decode("utf8")
+    # Value is a "bytestring"
+    # Decoding will be done at a later stage, once the code page/codec is known
+    return value
 
 class UNICODE(VariableLengthValueLoader):
   @staticmethod
@@ -817,8 +851,41 @@ property_tags = {
   0x3F06: ('YPOS', 'I4'),
   0x3F07: ('CONTROL_ID', 'BINARY'),
   0x3F08: ('INITIAL_DETAILS_PANE', 'I4'),
+  0x3FDE: ('PR_INTERNET_CPID', 'I4'),
+  0x3FFD: ('PR_MESSAGE_CODEPAGE', 'I4'),
 }
 
+code_pages = {
+  # Microsoft code page id: python codec name
+  437: "cp437",
+  850: "cp850",
+  852: "cp852",
+  936: "gb2312",
+  1250: "cp1250",
+  1251: "cp1251",
+  1252: "cp1252",
+  1253: "cp1253",
+  1254: "cp1254",
+  1255: "cp1255",
+  1256: "cp1256",
+  1257: "cp1257",
+  1258: "cp1258",
+  20127: "ascii",
+  20866: "koi8-r",
+  21866: "koi8-u",
+  28591: "iso8859_1",
+  28592: "iso8859_2",
+  28593: "iso8859_3",
+  28594: "iso8859_4",
+  28595: "iso8859_5",
+  28596: "iso8859_6",
+  28597: "iso8859_7",
+  28598: "iso8859_8",
+  28599: "iso8859_9",
+  28603: "iso8859_13",
+  28605: "iso8859_15",
+  65001: "utf-8",
+}
 
 # COMMAND-LINE ENTRY POINT
 
