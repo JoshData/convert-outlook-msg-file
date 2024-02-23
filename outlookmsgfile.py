@@ -26,6 +26,7 @@ import compoundfiles
 
 logger = logging.getLogger(__name__)
 
+FALLBACK_ENCODING = 'cp1252'
 
 # MAIN FUNCTIONS
 
@@ -191,8 +192,7 @@ def parse_properties(properties, is_top_level, container, doc):
   i = (32 if is_top_level else 24)
 
   # Read 16-byte entries.
-  ret = { }
-  tags_to_decode = []
+  raw_properties = { }
   while i < len(stream):
     # Read the entry.
     property_type  = stream[i+0:i+2]
@@ -210,7 +210,8 @@ def parse_properties(properties, is_top_level, container, doc):
 
     # Fixed Length Properties.
     if isinstance(tag_type, FixedLengthValueLoader):
-      value = tag_type.load(value)
+      # The value comes from the stream above.
+      pass
 
     # Variable Length Properties.
     elif isinstance(tag_type, VariableLengthValueLoader):
@@ -226,11 +227,6 @@ def parse_properties(properties, is_top_level, container, doc):
         logger.error("stream missing {}".format(streamname))
         continue
 
-      if isinstance(tag_type, STRING8):
-        tags_to_decode.append(tag_name)
-
-      value = tag_type.load(value)
-
     elif isinstance(tag_type, EMBEDDED_MESSAGE):
       # Look up the stream in the document that holds the attachment.
       streamname = "__substg1.0_{0:0{1}X}{2:0{3}X}".format(property_tag,4, property_type,4)
@@ -240,50 +236,55 @@ def parse_properties(properties, is_top_level, container, doc):
         # Stream isn't present!
         logger.error("stream missing {}".format(streamname))
         continue
-      try:
-        value = tag_type.load(value, doc)
-      except KeyError as e:
-        logger.error("Error while reading stream: {} not found".format(str(e)))
-        continue
+
     else:
       # unrecognized type
       logger.error("unhandled property type {}".format(hex(property_type)))
       continue
 
-    ret[tag_name] = value
+    raw_properties[tag_name] = (tag_type, value)
 
-  # Post-processing: decode String8 strings using the code pages defined
-  # in properties.
-  #
-  # These properties are required to be present but in the real world they
-  # aren't always there, so there's a fallback to code page 1252 (Western
-  # Europe)
+  # Decode all FixedLengthValueLoader properties so we have codepage
+  # properties.
+  properties = { }
+  for tag_name, (tag_type, value) in raw_properties.items():
+    if not isinstance(tag_type, FixedLengthValueLoader): continue
+    try:
+      properties[tag_name] = tag_type.load(value)
+    except Exception as e:
+      logger.error("Error while reading stream: {}".format(str(e)))
 
-  # The encoding of the "BODY" (and HTML body) properties
-  if "PR_INTERNET_CPID" in ret:
-    body_codepage = code_pages.get(ret['PR_INTERNET_CPID'], 'cp1252')
-  else:
-    body_codepage = 'cp1252'
+  # String8 strings use code page information stored in other
+  # properties, which may not be present. Find the Python
+  # encoding to use.
 
-  # The encoding of "string properties of the message object"
-  if "PR_MESSAGE_CODEPAGE" in ret:
-    message_codepage = code_pages.get(ret['PR_MESSAGE_CODEPAGE'], 'cp1252')
-  else:
-    message_codepage = 'cp1252'
+  # The encoding of the "BODY" (and HTML body) properties.
+  body_encoding = None
+  if "PR_INTERNET_CPID" in properties and properties['PR_INTERNET_CPID'] in code_pages:
+    body_encoding = code_pages[properties['PR_INTERNET_CPID']]
 
-  for tag_name in tags_to_decode:
-    decoded = False
-    if tag_name == "BODY":
-      try:
-        ret[tag_name] = ret[tag_name].decode(body_codepage)
-        decoded = True
-      except UnicodeDecodeError:
-        pass
+  # The encoding of "string properties of the message object".
+  properties_encoding = None
+  if "PR_MESSAGE_CODEPAGE" in properties and properties['PR_MESSAGE_CODEPAGE'] in code_pages:
+    properties_encoding = code_pages[properties['PR_MESSAGE_CODEPAGE']]
 
-    if not decoded:
-      ret[tag_name] = ret[tag_name].decode(message_codepage, errors='replace')
+  # Decode all of the remaining properties.
+  for tag_name, (tag_type, value) in raw_properties.items():
+    if isinstance(tag_type, FixedLengthValueLoader): continue # already done, above
 
-  return ret
+    # The codepage properties may be wrong. Fall back to
+    # the other property if present.
+    encodings = [body_encoding, properties_encoding] if tag_name == "BODY" \
+      else [properties_encoding, body_encoding]
+
+    try:
+      properties[tag_name] = tag_type.load(value, encodings=encodings, doc=doc)
+    except KeyError as e:
+      logger.error("Error while reading stream: {} not found".format(str(e)))
+    except Exception as e:
+      logger.error("Error while reading stream: {}".format(str(e)))
+
+  return properties
 
 
 # PROPERTY VALUE LOADERS
@@ -343,30 +344,35 @@ class VariableLengthValueLoader(object):
 
 class BINARY(VariableLengthValueLoader):
   @staticmethod
-  def load(value):
+  def load(value, **kwargs):
     # value is a bytestring. Just return it.
     return value
 
 class STRING8(VariableLengthValueLoader):
   @staticmethod
-  def load(value):
-    # Value is a "bytestring"
-    # Decoding will be done at a later stage, once the code page/codec is known
-    return value
+  def load(value, encodings, **kwargs):
+    # Value is a "bytestring" and encodings is a list of Python
+    # codecs to try. If all fail, try the fallback codec with
+    # character replacement so that this never fails.
+    for encoding in encodings:
+      try:
+        return value.decode(encoding=encoding, errors='strict')
+      except:
+        # Try the next one.
+        pass
+    return value.decode(encoding=FALLBACK_ENCODING, errors='replace')
 
 class UNICODE(VariableLengthValueLoader):
   @staticmethod
-  def load(value):
-    # value is a bytestring. I haven't seen specified what character encoding
-    # is used when the Unicode storage type is not used, so we'll assume it's
-    # ASCII or Latin-1 like but we'll use UTF-8 to cover the bases.
+  def load(value, **kwargs):
+    # value is a bytestring encoded in UTF-16.
     return value.decode("utf16")
 
 # TODO: The other variable-length tag types are "CLSID", "OBJECT".
 
 class EMBEDDED_MESSAGE(object):
   @staticmethod
-  def load(entry, doc):
+  def load(entry, doc, **kwargs):
     return load_message_stream(entry, False, doc)
 
 
