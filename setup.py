@@ -4,6 +4,7 @@ install_requires = [
     'compoundfiles',
     'compressed_rtf',
     'rtfparse',
+    'html2text',
 ]
 
 with open("README.md", "r") as fh:

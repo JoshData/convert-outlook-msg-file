@@ -26,6 +26,7 @@ from email.utils import parsedate_to_datetime, formatdate, formataddr
 import compoundfiles
 from rtfparse.parser import Rtf_Parser
 from rtfparse.renderers.de_encapsulate_html import De_encapsulate_HTML
+import html2text
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,12 @@ def load_message_stream(entry, is_top_level, doc):
       html_stream = io.StringIO()
       De_encapsulate_HTML().render(parsed, html_stream)
       html_body = html_stream.getvalue()
+
+      if not has_body:
+        # Try to convert that to plain/text if possible.
+        text_body = html2text.html2text(html_body)
+        msg.set_content(text_body, subtype="text", cte='quoted-printable')
+        has_body = True
 
       if not has_body:
         msg.set_content(html_body, subtype="html", cte='quoted-printable')
