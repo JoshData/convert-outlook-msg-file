@@ -16,6 +16,7 @@ import re
 import logging
 import os
 import sys
+import io
 
 from functools import reduce
 
@@ -23,6 +24,8 @@ import email.message, email.parser, email.policy
 from email.utils import parsedate_to_datetime, formatdate, formataddr
 
 import compoundfiles
+from rtfparse.parser import Rtf_Parser
+from rtfparse.renderers.de_encapsulate_html import De_encapsulate_HTML
 
 logger = logging.getLogger(__name__)
 
@@ -102,33 +105,57 @@ def load_message_stream(entry, is_top_level, doc):
             msg['Subject'] = props['SUBJECT']
         del props['SUBJECT']
 
-  # Add the plain-text body from the BODY field.
+  # Add a plain text body from the BODY field.
+  has_body = False
   if 'BODY' in props:
     body = props['BODY']
     if isinstance(body, str):
       msg.set_content(body, cte='quoted-printable')
     else:
       msg.set_content(body, maintype="text", subtype="plain", cte='8bit')
+    has_body = True
 
-  # Plain-text is not availabe. Use the rich text version.
-  else:
-    doc.rtf_attachments += 1
-    fn = "messagebody_{}.rtf".format(doc.rtf_attachments)
-
-    msg.set_content(
-      "<no plain text message body --- see attachment {}>".format(fn),
-      cte='quoted-printable')
-
+  # Add a HTML body from the RTF_COMPRESSED field.
+  if 'RTF_COMPRESSED' in props:
     # Decompress the value to Rich Text Format.
     import compressed_rtf
     rtf = props['RTF_COMPRESSED']
     rtf = compressed_rtf.decompress(rtf)
 
-    # Add RTF file as an attachment.
-    msg.add_attachment(
-      rtf,
-      maintype="text", subtype="rtf",
-      filename=fn)
+    # Try rtfparse to de-encapsulate HTML stored in a rich
+    # text container.
+    try:
+      rtf_blob = io.BytesIO(rtf)
+      parsed = Rtf_Parser(rtf_file=rtf_blob).parse_file()
+      html_stream = io.StringIO()
+      De_encapsulate_HTML().render(parsed, html_stream)
+      html_body = html_stream.getvalue()
+
+      if not has_body:
+        msg.set_content(html_body, subtype="html", cte='quoted-printable')
+        has_body = True
+      else:
+        msg.add_alternative(html_body, subtype="html", cte='quoted-printable')
+
+    # If that fails, just attach the RTF file to the message.
+    except:
+      doc.rtf_attachments += 1
+      fn = "messagebody_{}.rtf".format(doc.rtf_attachments)
+
+      if not has_body:
+        msg.set_content(
+          "<no plain text message body --- see attachment {}>".format(fn),
+          cte='quoted-printable')
+        has_body = True
+
+      # Add RTF file as an attachment.
+      msg.add_attachment(
+        rtf,
+        maintype="text", subtype="rtf",
+        filename=fn)
+
+  if not has_body:
+    msg.set_content("<no message body>", cte='quoted-printable')
 
   # # Copy over string values of remaining properties as headers
   # # so we don't lose any information.

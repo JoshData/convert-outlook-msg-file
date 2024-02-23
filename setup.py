@@ -3,6 +3,7 @@ import setuptools
 install_requires = [
     'compoundfiles',
     'compressed_rtf',
+    'rtfparse',
 ]
 
 with open("README.md", "r") as fh:
@@ -10,7 +11,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='convert-outlook-msg-file',
-    version='0.1.0',
+    version='0.2.0',
     description='Parse Microsoft Outlook MSG files',
     author='Joshua Tauberer',
     author_email='jt@occams.info',
@@ -19,7 +20,7 @@ setuptools.setup(
     install_requires=install_requires,
     long_description=long_description,
     long_description_content_type="text/markdown",
-    python_requires='>=3.6',
+    python_requires='>=3.9',
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
