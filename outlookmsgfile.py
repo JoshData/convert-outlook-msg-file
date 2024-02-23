@@ -26,6 +26,7 @@ import compoundfiles
 
 logger = logging.getLogger(__name__)
 
+FALLBACK_ENCODING = 'cp1252'
 
 # MAIN FUNCTIONS
 
@@ -191,7 +192,7 @@ def parse_properties(properties, is_top_level, container, doc):
   i = (32 if is_top_level else 24)
 
   # Read 16-byte entries.
-  ret = { }
+  raw_properties = { }
   while i < len(stream):
     # Read the entry.
     property_type  = stream[i+0:i+2]
@@ -209,7 +210,8 @@ def parse_properties(properties, is_top_level, container, doc):
 
     # Fixed Length Properties.
     if isinstance(tag_type, FixedLengthValueLoader):
-      value = tag_type.load(value)
+      # The value comes from the stream above.
+      pass
 
     # Variable Length Properties.
     elif isinstance(tag_type, VariableLengthValueLoader):
@@ -225,8 +227,6 @@ def parse_properties(properties, is_top_level, container, doc):
         logger.error("stream missing {}".format(streamname))
         continue
 
-      value = tag_type.load(value)
-
     elif isinstance(tag_type, EMBEDDED_MESSAGE):
       # Look up the stream in the document that holds the attachment.
       streamname = "__substg1.0_{0:0{1}X}{2:0{3}X}".format(property_tag,4, property_type,4)
@@ -236,19 +236,55 @@ def parse_properties(properties, is_top_level, container, doc):
         # Stream isn't present!
         logger.error("stream missing {}".format(streamname))
         continue
-      try:
-        value = tag_type.load(value, doc)
-      except KeyError as e:
-        logger.error("Error while reading stream: {} not found".format(str(e)))
-        continue
+
     else:
       # unrecognized type
       logger.error("unhandled property type {}".format(hex(property_type)))
       continue
 
-    ret[tag_name] = value
+    raw_properties[tag_name] = (tag_type, value)
 
-  return ret
+  # Decode all FixedLengthValueLoader properties so we have codepage
+  # properties.
+  properties = { }
+  for tag_name, (tag_type, value) in raw_properties.items():
+    if not isinstance(tag_type, FixedLengthValueLoader): continue
+    try:
+      properties[tag_name] = tag_type.load(value)
+    except Exception as e:
+      logger.error("Error while reading stream: {}".format(str(e)))
+
+  # String8 strings use code page information stored in other
+  # properties, which may not be present. Find the Python
+  # encoding to use.
+
+  # The encoding of the "BODY" (and HTML body) properties.
+  body_encoding = None
+  if "PR_INTERNET_CPID" in properties and properties['PR_INTERNET_CPID'] in code_pages:
+    body_encoding = code_pages[properties['PR_INTERNET_CPID']]
+
+  # The encoding of "string properties of the message object".
+  properties_encoding = None
+  if "PR_MESSAGE_CODEPAGE" in properties and properties['PR_MESSAGE_CODEPAGE'] in code_pages:
+    properties_encoding = code_pages[properties['PR_MESSAGE_CODEPAGE']]
+
+  # Decode all of the remaining properties.
+  for tag_name, (tag_type, value) in raw_properties.items():
+    if isinstance(tag_type, FixedLengthValueLoader): continue # already done, above
+
+    # The codepage properties may be wrong. Fall back to
+    # the other property if present.
+    encodings = [body_encoding, properties_encoding] if tag_name == "BODY" \
+      else [properties_encoding, body_encoding]
+
+    try:
+      properties[tag_name] = tag_type.load(value, encodings=encodings, doc=doc)
+    except KeyError as e:
+      logger.error("Error while reading stream: {} not found".format(str(e)))
+    except Exception as e:
+      logger.error("Error while reading stream: {}".format(str(e)))
+
+  return properties
 
 
 # PROPERTY VALUE LOADERS
@@ -308,31 +344,35 @@ class VariableLengthValueLoader(object):
 
 class BINARY(VariableLengthValueLoader):
   @staticmethod
-  def load(value):
+  def load(value, **kwargs):
     # value is a bytestring. Just return it.
     return value
 
 class STRING8(VariableLengthValueLoader):
   @staticmethod
-  def load(value):
-    # value is a bytestring. I haven't seen specified what character encoding
-    # is used when the Unicode storage type is not used, so we'll assume it's
-    # ASCII or Latin-1 like but we'll use UTF-8 to cover the bases.
-    return value.decode("utf8")
+  def load(value, encodings, **kwargs):
+    # Value is a "bytestring" and encodings is a list of Python
+    # codecs to try. If all fail, try the fallback codec with
+    # character replacement so that this never fails.
+    for encoding in encodings:
+      try:
+        return value.decode(encoding=encoding, errors='strict')
+      except:
+        # Try the next one.
+        pass
+    return value.decode(encoding=FALLBACK_ENCODING, errors='replace')
 
 class UNICODE(VariableLengthValueLoader):
   @staticmethod
-  def load(value):
-    # value is a bytestring. I haven't seen specified what character encoding
-    # is used when the Unicode storage type is not used, so we'll assume it's
-    # ASCII or Latin-1 like but we'll use UTF-8 to cover the bases.
+  def load(value, **kwargs):
+    # value is a bytestring encoded in UTF-16.
     return value.decode("utf16")
 
 # TODO: The other variable-length tag types are "CLSID", "OBJECT".
 
 class EMBEDDED_MESSAGE(object):
   @staticmethod
-  def load(entry, doc):
+  def load(entry, doc, **kwargs):
     return load_message_stream(entry, False, doc)
 
 
@@ -817,8 +857,41 @@ property_tags = {
   0x3F06: ('YPOS', 'I4'),
   0x3F07: ('CONTROL_ID', 'BINARY'),
   0x3F08: ('INITIAL_DETAILS_PANE', 'I4'),
+  0x3FDE: ('PR_INTERNET_CPID', 'I4'),
+  0x3FFD: ('PR_MESSAGE_CODEPAGE', 'I4'),
 }
 
+code_pages = {
+  # Microsoft code page id: python codec name
+  437: "cp437",
+  850: "cp850",
+  852: "cp852",
+  936: "gb2312",
+  1250: "cp1250",
+  1251: "cp1251",
+  1252: "cp1252",
+  1253: "cp1253",
+  1254: "cp1254",
+  1255: "cp1255",
+  1256: "cp1256",
+  1257: "cp1257",
+  1258: "cp1258",
+  20127: "ascii",
+  20866: "koi8-r",
+  21866: "koi8-u",
+  28591: "iso8859_1",
+  28592: "iso8859_2",
+  28593: "iso8859_3",
+  28594: "iso8859_4",
+  28595: "iso8859_5",
+  28596: "iso8859_6",
+  28597: "iso8859_7",
+  28598: "iso8859_8",
+  28599: "iso8859_9",
+  28603: "iso8859_13",
+  28605: "iso8859_15",
+  65001: "utf-8",
+}
 
 # COMMAND-LINE ENTRY POINT
 
