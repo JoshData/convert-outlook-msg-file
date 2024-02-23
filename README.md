@@ -6,6 +6,16 @@ reading Microsoft Outlook .msg files and converting
 them to .eml format, which is the standard MIME
 format for email messages.
 
+This project uses
+[compoundfiles](https://pypi.org/project/compoundfiles/)
+to navigate the .msg file structure,
+[compressed-rtf](https://pypi.org/project/compressed-rtf/)
+and [rtfparse](https://pypi.org/project/rtfparse/)
+to unpack HTML message bodies, and
+[html2text](https://pypi.org/project/html2text/) to
+back-fill plain text message bodies when only an HTML body
+is present.
+
 Install the dependencies with:
 
     pip install -r requirements.txt
