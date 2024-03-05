@@ -1,4 +1,7 @@
+import os
 import setuptools
+
+setup_path = os.path.dirname(os.path.realpath(__file__))
 
 install_requires = [
     'compoundfiles',
@@ -7,7 +10,7 @@ install_requires = [
     'html2text',
 ]
 
-with open("README.md", "r") as fh:
+with open(f"{setup_path}/README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
