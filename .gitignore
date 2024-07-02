@@ -1,1 +1,4 @@
+*.msg
+*.eml
 __pycache__
+*.egg-info
