@@ -198,7 +198,11 @@ def process_attachment(msg, entry, doc):
   mime_type = props.get('ATTACH_MIME_TAG', 'application/octet-stream')
   if isinstance(mime_type, bytes): mime_type = mime_type.decode("utf8")
 
-  filename = os.path.basename(filename)
+  try:
+    filename = os.path.basename(filename)
+  except (TypeError, ValueError) as e:
+    logger.warning("Warning in processing attachment filename: {}".format(str(e)))
+    filename = 'attachment'
 
   # Python 3.6.
   if isinstance(blob, str):
