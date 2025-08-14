@@ -90,17 +90,17 @@ def load_message_stream(entry, is_top_level, doc):
 
     if 'DISPLAY_TO' in props:
         if props['DISPLAY_TO']:
-            msg['To'] = props['DISPLAY_TO']
+            msg['To'] = props['DISPLAY_TO'].split(";")
         del props['DISPLAY_TO']
 
     if 'DISPLAY_CC' in props:
         if props['DISPLAY_CC']:
-            msg['CC'] = props['DISPLAY_CC']
+            msg['CC'] = props['DISPLAY_CC'].split(";")
         del props['DISPLAY_CC']
 
     if 'DISPLAY_BCC' in props:
         if props['DISPLAY_BCC']:
-            msg['BCC'] = props['DISPLAY_BCC']
+            msg['BCC'] = props['DISPLAY_BCC'].split(";")
         del props['DISPLAY_BCC']
 
     if 'SUBJECT' in props:
@@ -391,9 +391,13 @@ class BINARY(VariableLengthValueLoader):
 class STRING8(VariableLengthValueLoader):
   @staticmethod
   def load(value, encodings, **kwargs):
-    # Value is a "bytestring" and encodings is a list of Python
+    # Some strings are C-style "null terminated"
+    value = value.removesuffix(b'\0')
+
+    # "value" is of type "bytes" and "encodings" is a list of Python
     # codecs to try. If all fail, try the fallback codec with
     # character replacement so that this never fails.
+
     for encoding in encodings:
       try:
         return value.decode(encoding=encoding, errors='strict')
