@@ -35,7 +35,9 @@ appended to the filename is written out with the message in MIME format.
 
 To use it in your application
 
-    import outlookmsgfile
-    eml = outlookmsgfile.load('my_email_sample.msg')
+```python
+import outlookmsgfile
+eml = outlookmsgfile.load('my_email_sample.msg')
+```
     
 The ``load()`` function returns an [EmailMessage](https://docs.python.org/3/library/email.message.html#email.message.EmailMessage) instance.
