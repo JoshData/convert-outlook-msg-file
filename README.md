@@ -12,7 +12,7 @@ to navigate the .msg file structure,
 [compressed-rtf](https://pypi.org/project/compressed-rtf/)
 and [rtfparse](https://pypi.org/project/rtfparse/)
 to unpack HTML message bodies, and
-[html2text](https://pypi.org/project/html2text/) to
+[Beautiful Soup 4](https://pypi.org/project/beautifulsoup4/) to
 back-fill plain text message bodies when only an HTML body
 is present.
 

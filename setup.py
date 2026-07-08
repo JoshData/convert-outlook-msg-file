@@ -7,7 +7,7 @@ install_requires = [
     'compoundfiles',
     'compressed_rtf',
     'rtfparse',
-    'html2text',
+    'beautifulsoup4',
 ]
 
 with open(f"{setup_path}/README.md", "r") as fh:

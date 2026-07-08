@@ -28,7 +28,7 @@ from email.utils import parsedate_to_datetime, formatdate, formataddr
 import compoundfiles
 from rtfparse.parser import Rtf_Parser
 from rtfparse.renderers.html_decapsulator import HTML_Decapsulator
-import html2text
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ def load_message_stream(entry, is_top_level, doc):
 
       if not has_body:
         # Try to convert that to plain/text if possible.
-        text_body = html2text.html2text(html_body)
+        text_body = BeautifulSoup(html_body, "html.parser").get_text()
         msg.set_content(text_body, subtype="text", cte='quoted-printable')
         has_body = True
 
