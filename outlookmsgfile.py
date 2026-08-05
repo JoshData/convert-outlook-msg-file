@@ -118,6 +118,12 @@ def load_message_stream(entry, is_top_level, doc):
       msg.set_content(body, maintype="text", subtype="plain", cte='8bit')
     has_body = True
 
+  # Add a html body if available
+  if not has_body and 'HTML_BODY' in props:
+    body = props['HTML_BODY']
+    msg.set_content(body, maintype="text", subtype="plain", cte='8bit')
+    has_body = True
+
   # Add a HTML body from the RTF_COMPRESSED field.
   if 'RTF_COMPRESSED' in props:
     # Decompress the value to Rich Text Format.
@@ -410,7 +416,11 @@ class UNICODE(VariableLengthValueLoader):
   @staticmethod
   def load(value, **kwargs):
     # value is a bytestring encoded in UTF-16.
-    return value.decode("utf16")
+    decoded = value.decode("utf16")
+    # do c-style strings get encoded as utf16?
+    # is there an off-by-one error in the variable length math?
+    decoded =  decoded.removesuffix('\x00')
+    return decoded
 
 # TODO: The other variable-length tag types are "CLSID", "OBJECT".
 
@@ -600,6 +610,7 @@ property_tags = {
   0x1010: ('RTF_SYNC_PREFIX_COUNT', 'I4'),
   0x1011: ('RTF_SYNC_TRAILING_COUNT', 'I4'),
   0x1012: ('ORIGINALLY_INTENDED_RECIP_ENTRYID', 'BINARY'),
+  0x1013: ('HTML_BODY', 'BINARY'),
   0x0C00: ('CONTENT_INTEGRITY_CHECK', 'BINARY'),
   0x0C01: ('EXPLICIT_CONVERSION', 'I4'),
   0x0C02: ('IPM_RETURN_REQUESTED', 'BOOLEAN'),
